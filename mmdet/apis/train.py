@@ -69,6 +69,7 @@ def _dist_train(model, dataset, cfg, validate=False):
             dist=True)
     ]
     # put model on gpus
+    # todo: pytorch distributed data parallel have device_ids, use it if needed
     model = MMDistributedDataParallel(model.cuda())
     # build runner
     runner = Runner(model, batch_processor, cfg.optimizer, cfg.work_dir,

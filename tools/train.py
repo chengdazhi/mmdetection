@@ -30,6 +30,7 @@ def parse_args():
         choices=['none', 'pytorch', 'slurm', 'mpi'],
         default='none',
         help='job launcher')
+    parser.add_argument('--use_philly', type=bool, default=False, help='use philly')
     parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
 
@@ -54,7 +55,7 @@ def main():
         distributed = False
     else:
         distributed = True
-        init_dist(args.launcher, **cfg.dist_params)
+        init_dist(args.launcher, use_philly=args.use_philly, **cfg.dist_params)
 
     # init logger before other steps
     logger = get_root_logger(cfg.log_level)

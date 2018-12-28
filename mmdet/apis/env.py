@@ -8,12 +8,14 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 from mmcv.runner import get_dist_info
 
+from .philly_env import get_master_ip
+from .distributed import ompi_size, ompi_rank, gpu_indices
 
-def init_dist(launcher, backend='nccl', **kwargs):
+def init_dist(launcher, backend='nccl', use_philly=False, **kwargs):
     if mp.get_start_method(allow_none=True) is None:
         mp.set_start_method('spawn')
     if launcher == 'pytorch':
-        _init_dist_pytorch(backend, **kwargs)
+        _init_dist_pytorch(backend, use_philly, **kwargs)
     elif launcher == 'mpi':
         _init_dist_mpi(backend, **kwargs)
     elif launcher == 'slurm':
@@ -22,12 +24,23 @@ def init_dist(launcher, backend='nccl', **kwargs):
         raise ValueError('Invalid launcher type: {}'.format(launcher))
 
 
-def _init_dist_pytorch(backend, **kwargs):
+def _init_dist_pytorch(backend, use_philly=False, **kwargs):
     # TODO: use local_rank instead of rank % num_gpus
-    rank = int(os.environ['RANK'])
-    num_gpus = torch.cuda.device_count()
-    torch.cuda.set_device(rank % num_gpus)
-    dist.init_process_group(backend=backend, **kwargs)
+    if use_philly:
+        gpus = list(gpu_indices())
+        torch.cuda.set_device(gpus[0])
+        dist.init_process_group(
+            backend=backend,
+            init_method='tcp://' + get_master_ip() + ':23456',
+            world_size=ompi_size(),
+            rank=ompi_rank(),
+            group_name='mtorch'
+        )
+    else:
+        rank = int(os.environ['RANK'])
+        num_gpus = torch.cuda.device_count()
+        torch.cuda.set_device(rank % num_gpus)
+        dist.init_process_group(backend=backend, **kwargs)
 
 
 def _init_dist_mpi(backend, **kwargs):
